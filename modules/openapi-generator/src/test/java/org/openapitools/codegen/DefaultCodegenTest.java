@@ -31,9 +31,10 @@ import io.swagger.v3.oas.models.parameters.QueryParameter;
 import io.swagger.v3.oas.models.parameters.RequestBody;
 import io.swagger.v3.oas.models.responses.ApiResponse;
 import io.swagger.v3.oas.models.responses.ApiResponses;
+import io.swagger.v3.oas.models.security.SecurityScheme;
 import io.swagger.v3.parser.core.models.ParseOptions;
 
-import org.openapitools.codegen.languages.JavaClientCodegen;
+import org.openapitools.codegen.config.CodegenConfigurator;
 import org.openapitools.codegen.templating.mustache.CamelCaseLambda;
 import org.openapitools.codegen.templating.mustache.IndentedLambda;
 import org.openapitools.codegen.templating.mustache.LowercaseLambda;
@@ -45,6 +46,7 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 
 import java.io.File;
+import java.nio.file.Files;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -2162,4 +2164,181 @@ public class DefaultCodegenTest {
         Schema items = ((ArraySchema) openAPI.getComponents().getSchemas().get("CustomOneOfArraySchema")).getItems();
         Assert.assertEquals(items.getExtensions().get("x-one-of-name"), "CustomOneOfArraySchemaOneOf");
     }
+
+    @Test
+    public void testFormComposedSchema() {
+        OpenAPI openAPI = TestUtils.parseContent("openapi: 3.0.1\n" +
+            "info:\n" +
+            "  version: '1.0.0'\n" +
+            "  title: the title\n" +
+            "\n" +
+            "paths:\n" +
+            "  '/users/me':\n" +
+            "    post:\n" +
+            "      description: Change user password.\n" +
+            "      operationId: changeCurrentUserPassword\n" +
+            "      requestBody:\n" +
+            "        required: true\n" +
+            "        content:\n" +
+            "          multipart/form-data:\n" +
+            "            schema:\n" +
+            "              $ref: '#/components/schemas/ChangePasswordRequest'\n" +
+            "      responses:\n" +
+            "        '200':\n" +
+            "          description: Successful operation\n" +
+            "          content: {}\n" +
+            "\n" +
+            "components:\n" +
+            "  schemas:\n" +
+            "    CommonPasswordRequest:\n" +
+            "      type: object\n" +
+            "      required: [ password, passwordConfirmation ]\n" +
+            "      properties:\n" +
+            "        password:\n" +
+            "          type: string\n" +
+            "          format: password\n" +
+            "        passwordConfirmation:\n" +
+            "          type: string\n" +
+            "          format: password\n" +
+            "\n" +
+            "    ChangePasswordRequest:\n" +
+            "      type: object\n" +
+            "      allOf:\n" +
+            "        - $ref: '#/components/schemas/CommonPasswordRequest'\n" +
+            "        - type: object\n" +
+            "          required: [ oldPassword ]\n" +
+            "          properties:\n" +
+            "            oldPassword:\n" +
+            "              type: string\n" +
+            "              format: password\n");
+
+        final DefaultCodegen cg = new DefaultCodegen();
+        cg.setOpenAPI(openAPI);
+        cg.setUseOneOfInterfaces(true);
+        cg.preprocessOpenAPI(openAPI);
+
+        final PathItem path = openAPI.getPaths().get("/users/me");
+        final CodegenOperation operation = cg.fromOperation(
+            "/users/me",
+            "post",
+            path.getPost(),
+            path.getServers());
+        assertEquals(operation.formParams.size(), 3,
+            "The list of parameters should include inherited type");
+
+        final List<String> names = operation.formParams.stream()
+            .map(param -> param.paramName)
+            .collect(Collectors.toList());
+        assertTrue(names.contains("password"));
+        assertTrue(names.contains("passwordConfirmation"));
+        assertTrue(names.contains("oldPassword"));
+    }
+
+    @Test
+    public void inlineAllOfSchemaDoesNotThrowException() {
+        final OpenAPI openAPI = TestUtils.parseFlattenSpec("src/test/resources/3_0/issue7262.yaml");
+        final DefaultCodegen codegen = new DefaultCodegen();
+        codegen.setOpenAPI(openAPI);
+
+        String modelName = "UserTimeBase";
+        Schema sc = openAPI.getComponents().getSchemas().get(modelName);
+        CodegenModel cm = codegen.fromModel(modelName, sc);
+
+        final Set<CodegenDiscriminator.MappedModel> expectedMappedModels = new HashSet<>(Arrays.asList(new CodegenDiscriminator.MappedModel("UserSleep", "UserSleep")));
+        final Set<CodegenDiscriminator.MappedModel> mappedModels = cm.getDiscriminator().getMappedModels();
+        assertEquals(mappedModels, expectedMappedModels);
+
+        modelName = "UserSleep";
+        sc = openAPI.getComponents().getSchemas().get(modelName);
+        cm = codegen.fromModel(modelName, sc);
+        final Set<String> expectedAllOf = new HashSet<>(Arrays.asList("UserTimeBase"));
+        assertEquals(cm.allOf, expectedAllOf);
+        assertEquals(openAPI.getComponents().getSchemas().size(), 2);
+        assertNull(cm.getDiscriminator());
+    }
+
+    @Test
+    public void arrayModelHasValidation() {
+        final OpenAPI openAPI = TestUtils.parseFlattenSpec("src/test/resources/3_0/issue7356.yaml");
+        final DefaultCodegen codegen = new DefaultCodegen();
+        codegen.setOpenAPI(openAPI);
+
+        String modelName = "ArrayWithValidations";
+        Schema sc = openAPI.getComponents().getSchemas().get(modelName);
+        CodegenModel cm = codegen.fromModel(modelName, sc);
+        assertEquals((int) cm.getMinItems(), 1);
+    }
+
+    @Test
+    public void testFreeFormSchemas() throws Exception {
+        File output = Files.createTempDirectory("test").toFile();
+
+        final CodegenConfigurator configurator = new CodegenConfigurator()
+                .setGeneratorName("java")
+                .setInputSpec("src/test/resources/3_0/issue_7361.yaml")
+                .setOutputDir(output.getAbsolutePath().replace("\\", "/"));
+
+        final ClientOptInput clientOptInput = configurator.toClientOptInput();
+        DefaultGenerator generator = new DefaultGenerator();
+        List<File> files = generator.opts(clientOptInput).generate();
+
+        TestUtils.ensureDoesNotContainsFile(files, output, "src/main/java/org/openapitools/client/model/FreeFormWithValidation.java");
+        TestUtils.ensureDoesNotContainsFile(files, output, "src/main/java/org/openapitools/client/model/FreeFormInterface.java");
+        TestUtils.ensureDoesNotContainsFile(files, output, "src/main/java/org/openapitools/client/model/FreeForm.java");
+        output.deleteOnExit();
+    }
+
+    @Test
+    public void testOauthMultipleFlows() {
+        final OpenAPI openAPI = TestUtils.parseFlattenSpec("src/test/resources/3_0/issue_7193.yaml");
+        final DefaultCodegen codegen = new DefaultCodegen();
+        codegen.setOpenAPI(openAPI);
+
+        final Map<String, SecurityScheme> securitySchemes = openAPI.getComponents().getSecuritySchemes();
+        final List<CodegenSecurity> securities = codegen.fromSecurity(securitySchemes);
+
+        assertEquals(securities.size(), 2);
+        final List<String> flows = securities.stream().map(c -> c.flow).collect(Collectors.toList());
+        assertTrue(flows.containsAll(Arrays.asList("password", "application")));
+    }
+
+    @Test
+    public void testItemsPresent() {
+        final OpenAPI openAPI = TestUtils.parseFlattenSpec("src/test/resources/3_0/issue_7613.yaml");
+        final DefaultCodegen codegen = new DefaultCodegen();
+        codegen.setOpenAPI(openAPI);
+
+        String modelName;
+        Schema sc;
+        CodegenModel cm;
+
+        modelName = "ArrayWithValidationsInItems";
+        sc = openAPI.getComponents().getSchemas().get(modelName);
+        cm = codegen.fromModel(modelName, sc);
+        assertEquals(cm.getItems().getMaximum(), "7");
+
+        modelName = "ObjectWithValidationsInArrayPropItems";
+        sc = openAPI.getComponents().getSchemas().get(modelName);
+        cm = codegen.fromModel(modelName, sc);
+        assertEquals(cm.getVars().get(0).getItems().getMaximum(), "7");
+
+        String path;
+        Operation operation;
+        CodegenOperation co;
+
+        path = "/ref_array_with_validations_in_items/{items}";
+        operation = openAPI.getPaths().get(path).getPost();
+        co = codegen.fromOperation(path, "POST", operation, null);
+        assertEquals(co.pathParams.get(0).getItems().getMaximum(), "7");
+        assertEquals(co.bodyParams.get(0).getItems().getMaximum(), "7");
+        assertEquals(co.responses.get(0).getItems().getMaximum(), "7");
+
+        path = "/array_with_validations_in_items/{items}";
+        operation = openAPI.getPaths().get(path).getPost();
+        co = codegen.fromOperation(path, "POST", operation, null);
+        assertEquals(co.pathParams.get(0).getItems().getMaximum(), "7");
+        assertEquals(co.bodyParams.get(0).getItems().getMaximum(), "7");
+        assertEquals(co.responses.get(0).getItems().getMaximum(), "7");
+    }
+
 }

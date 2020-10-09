@@ -3,6 +3,8 @@ title: Config Options for kotlin
 sidebar_label: kotlin
 ---
 
+These options may be applied as additional-properties (cli) or configOptions (plugins). Refer to [configuration docs](https://openapi-generator.tech/docs/configuration) for more details.
+
 | Option | Description | Values | Default |
 | ------ | ----------- | ------ | ------- |
 |apiSuffix|suffix for api classes| |Api|
@@ -25,6 +27,7 @@ sidebar_label: kotlin
 |useCoroutines|Whether to use the Coroutines adapter with the retrofit2 library.| |false|
 |useRxJava|Whether to use the RxJava adapter with the retrofit2 library.| |false|
 |useRxJava2|Whether to use the RxJava2 adapter with the retrofit2 library.| |false|
+|useRxJava3|Whether to use the RxJava3 adapter with the retrofit2 library.| |false|
 
 ## IMPORT MAPPING
 

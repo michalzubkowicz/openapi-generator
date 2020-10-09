@@ -68,8 +68,8 @@ class Foo(ModelNormal):
     @cached_property
     def openapi_types():
         """
-        This must be a class method so a model may have properties that are
-        of type self, this ensures that we don't create a cyclic import
+        This must be a method because a model may have properties that are
+        of type self, this must run after the class is loaded
 
         Returns
             openapi_types (dict): The key is attribute name
@@ -82,6 +82,7 @@ class Foo(ModelNormal):
     @cached_property
     def discriminator():
         return None
+
 
     attribute_map = {
         'bar': 'bar',  # noqa: E501
@@ -100,7 +101,7 @@ class Foo(ModelNormal):
 
     @convert_js_args_to_python_args
     def __init__(self, *args, **kwargs):  # noqa: E501
-        """foo.Foo - a model defined in OpenAPI
+        """Foo - a model defined in OpenAPI
 
         Keyword Args:
             _check_type (bool): if True, values for parameters in openapi_types
@@ -133,7 +134,7 @@ class Foo(ModelNormal):
                                 Animal class but this time we won't travel
                                 through its discriminator because we passed in
                                 _visited_composed_classes = (Animal,)
-            bar (str): [optional] if omitted the server will use the default value of 'bar'  # noqa: E501
+            bar (str): [optional] if omitted the server will use the default value of "bar"  # noqa: E501
         """
 
         _check_type = kwargs.pop('_check_type', True)

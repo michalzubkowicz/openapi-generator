@@ -68,8 +68,8 @@ class NumberWithValidations(ModelSimple):
     @cached_property
     def openapi_types():
         """
-        This must be a class method so a model may have properties that are
-        of type self, this ensures that we don't create a cyclic import
+        This must be a method because a model may have properties that are
+        of type self, this must run after the class is loaded
 
         Returns
             openapi_types (dict): The key is attribute name
@@ -82,6 +82,7 @@ class NumberWithValidations(ModelSimple):
     @cached_property
     def discriminator():
         return None
+
 
     attribute_map = {}
 
@@ -97,13 +98,16 @@ class NumberWithValidations(ModelSimple):
     ])
 
     @convert_js_args_to_python_args
-    def __init__(self, value, *args, **kwargs):
-        """number_with_validations.NumberWithValidations - a model defined in OpenAPI
+    def __init__(self, *args, **kwargs):
+        """NumberWithValidations - a model defined in OpenAPI
+
+        Note that value can be passed either in args or in kwargs, but not in both.
 
         Args:
-            value (float):  # noqa: E501
+            args[0] (float):  # noqa: E501
 
         Keyword Args:
+            value (float):  # noqa: E501
             _check_type (bool): if True, values for parameters in openapi_types
                                 will be type checked and a TypeError will be
                                 raised if the wrong type is input.
@@ -135,6 +139,18 @@ class NumberWithValidations(ModelSimple):
                                 through its discriminator because we passed in
                                 _visited_composed_classes = (Animal,)
         """
+
+        if 'value' in kwargs:
+            value = kwargs.pop('value')
+        elif args:
+            args = list(args)
+            value = args.pop(0)
+        else:
+            raise ApiTypeError(
+                "value is required, but not passed in args or kwargs and doesn't have default",
+                path_to_item=_path_to_item,
+                valid_classes=(self.__class__,),
+            )
 
         _check_type = kwargs.pop('_check_type', True)
         _spec_property_naming = kwargs.pop('_spec_property_naming', False)

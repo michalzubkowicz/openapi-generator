@@ -86,6 +86,10 @@ abstract public class AbstractRubyCodegen extends DefaultCodegen implements Code
         typeMapping.put("ByteArray", "String");
         typeMapping.put("UUID", "String");
         typeMapping.put("URI", "String");
+
+        instantiationTypes.put("map", "Hash");
+        instantiationTypes.put("array", "Array");
+        instantiationTypes.put("set", "Set");
     }
 
     @Override
@@ -119,7 +123,24 @@ abstract public class AbstractRubyCodegen extends DefaultCodegen implements Code
     }
 
     @Override
+    public String toInstantiationType(Schema schema) {
+        if (ModelUtils.isMapSchema(schema)) {
+            return instantiationTypes.get("map");
+        } else if (ModelUtils.isArraySchema(schema)) {
+            String parentType;
+            if (ModelUtils.isSet(schema)) {
+                parentType = "set";
+            } else {
+                parentType = "array";
+            }
+            return instantiationTypes.get(parentType);
+        }
+        return super.toInstantiationType(schema);
+    }
+
+    @Override
     public String toDefaultValue(Schema p) {
+        p = ModelUtils.getReferencedSchema(this.openAPI, p);
         if (ModelUtils.isIntegerSchema(p) || ModelUtils.isNumberSchema(p) || ModelUtils.isBooleanSchema(p)) {
             if (p.getDefault() != null) {
                 return p.getDefault().toString();
@@ -131,6 +152,11 @@ abstract public class AbstractRubyCodegen extends DefaultCodegen implements Code
         }
 
         return null;
+    }
+
+    @Override
+    public String toEnumDefaultValue(String value, String datatype) {
+        return datatype + "::" + value;
     }
 
     @Override

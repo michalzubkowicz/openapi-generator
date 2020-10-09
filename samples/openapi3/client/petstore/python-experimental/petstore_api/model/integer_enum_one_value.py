@@ -67,8 +67,8 @@ class IntegerEnumOneValue(ModelSimple):
     @cached_property
     def openapi_types():
         """
-        This must be a class method so a model may have properties that are
-        of type self, this ensures that we don't create a cyclic import
+        This must be a method because a model may have properties that are
+        of type self, this must run after the class is loaded
 
         Returns
             openapi_types (dict): The key is attribute name
@@ -81,6 +81,7 @@ class IntegerEnumOneValue(ModelSimple):
     @cached_property
     def discriminator():
         return None
+
 
     attribute_map = {}
 
@@ -97,10 +98,15 @@ class IntegerEnumOneValue(ModelSimple):
 
     @convert_js_args_to_python_args
     def __init__(self, *args, **kwargs):
-        """integer_enum_one_value.IntegerEnumOneValue - a model defined in OpenAPI
+        """IntegerEnumOneValue - a model defined in OpenAPI
+
+        Note that value can be passed either in args or in kwargs, but not in both.
+
+        Args:
+            args[0] (int): if omitted defaults to 0, must be one of [0, ]  # noqa: E501
 
         Keyword Args:
-            value (int): defaults to 0, must be one of [0, ]  # noqa: E501
+            value (int): if omitted defaults to 0, must be one of [0, ]  # noqa: E501
             _check_type (bool): if True, values for parameters in openapi_types
                                 will be type checked and a TypeError will be
                                 raised if the wrong type is input.
@@ -140,6 +146,7 @@ class IntegerEnumOneValue(ModelSimple):
             value = args.pop(0)
         else:
             value = 0
+
         _check_type = kwargs.pop('_check_type', True)
         _spec_property_naming = kwargs.pop('_spec_property_naming', False)
         _path_to_item = kwargs.pop('_path_to_item', ())
